@@ -1,0 +1,128 @@
+# 2. Find the temperature as Cold / hot by using the case and avg of values of the given data set
+
+
+select Date, Temperature,
+case 
+when Temperature < 32 then 'cold' 
+when Temperature > 32 then 'Hot'
+else 'Normal'
+end as Temp_Cold_Hot
+from weather_forecast.new_wf_data;
+
+*********************************************************************************
+
+# 3. Can you check for all 4 consecutive days when the temperature was below 30 Fahrenheit
+
+with t1 as(
+#select date , temperature,
+select *,
+row_number() over ( order by date) as RN,
+date - row_number() over( order by date) as difference
+from weather_forecast.new_wf_data
+where Temperature < 30
+),
+t2 as 
+(select *, count(*) over(partition by difference) as no_of_records
+from t1)
+select *
+from t2
+where no_of_records = 4;
+
+***********************************************************************************
+
+# 4. Can you find the maximum number of days for which temperature dropped 
+
+WITH cte AS (
+  SELECT *,
+    Temperature - LAG (Temperature) over (ORDER BY date) AS diff
+  FROM 
+    weather_forecast.new_wf_data
+),
+cte2 AS (
+  SELECT *,
+	CASE WHEN diff >= 0 THEN 1 ELSE 0 END AS reset_flag,
+    SUM(CASE WHEN diff < 0 THEN 1 ELSE 0 END) 
+      OVER (ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS running_total
+  FROM 
+    cte
+),
+cte3 AS (
+  SELECT *,
+	CASE 
+      WHEN diff < 0 THEN 1
+      ELSE 0
+    END AS is_decreasing,
+    SUM(reset_flag) 
+      OVER (ORDER BY date ) AS grp
+  FROM 
+    cte2
+),
+
+cte4 AS (
+
+    SELECT *,
+	SUM(is_decreasing) OVER(Partition by grp ORDER BY date) AS running_sum
+  FROM cte3
+),
+
+cte5 AS (
+
+    SELECT *,
+	CASE WHEN running_sum = 0 THEN LAG(running_sum) OVER (ORDER BY date) ELSE 0 END AS consecutive_day_count
+  FROM cte4
+)
+
+SELECT 
+  MAX(consecutive_day_count) AS max_consecutive_decreasing_days
+
+FROM 
+  cte5
+
+************************************************************************************************************
+
+# Query 5  - Can you find the average of average humidity from the dataset 
+#( NOTE: should contain the following clauses: group by, order by, date )
+
+
+select date, avg(Humidity) as avg_Humid
+from weather_forecast.new_wf_data
+group by date 
+order by avg_humid desc
+
+**********************************************************************************************************
+# query 6
+# Use the GROUP BY clause on the Date column and make a query to fetch details for average windspeed ( which is now windspeed done in task 3 )
+
+select Date,
+	avg(windspeed)
+from weather_forecast.new_wf_data 
+group by Date
+********************************************************************************************************
+# 8 If the maximum gust speed increases from 55mph, fetch the details for the next 4 days
+
+with t1 as(
+select *,
+row_number() over ( order by date) as RN,
+date - row_number() over( order by date) as difference
+from weather_forecast.new_wf_data
+where Maximum_gust_speed_mph > 55
+),
+t2 as 
+(select *, count(*) over(partition by difference) as no_of_records
+from t1)
+select *
+from t2
+where no_of_records = 4;
+
+********************************************************************************************************
+
+# Query 9 Find the number of days when the temperature went below 0 degrees Celsius 
+
+
+select count(*) 
+from weather_forecast.new_wf_data
+where 0 > ((temperature - 32)* 5/9)
+
+
+************************************************************************************************************
+
